@@ -73,36 +73,32 @@ Important: `CRON_TZ` applies to all lines below it until you set it again.
 Monitor (every 10 minutes during US pre-market, regular hours, and after-hours; Mon–Fri):
 
 ```bash
-SHELL=/bin/bash
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# ---------- RichKingTracker (US market sessions) ----------
 CRON_TZ=America/New_York
 
-# Pre-market 04:00–09:20 ET (Mon–Fri)
-*/10 4-8 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-*/10 9   * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+# Pre-market: 04:00–09:20 ET, every 10 minutes (Mon–Fri)
+*/10 4-8 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+0,10,20 9 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 
-# Core session + immediate post-close 09:30–16:20 ET (Mon–Fri)
-30-59/10 9  * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-*/10      10-15 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-*/10      16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+# Core session: 09:30–15:50 ET, every 10 minutes (Mon–Fri)
+30-59/10 9  * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+*/10      10-15 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 
-# After-hours 16:30–19:50 ET (Mon–Fri)
-30-59/10 16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-*/10      17-19 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-````
+# Immediate post-close: 16:00–16:20 ET (Mon–Fri)
+0,10,20 16 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 
-Health report (every 30 minutes during US extended/core hours; Mon–Fri).
-The health reporter is stateful and only sends Telegram messages on meaningful changes (ERROR/STALE/state change, and optional daily OK heartbeat):
+# After-hours: 16:30–19:50 ET, every 10 minutes (Mon–Fri)
+30-59/10 16 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+*/10      17-19 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 
-```bash
-CRON_TZ=America/New_York
-*/30 4-19 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
-```
+# HEALTH: every 30 minutes during 04:00–19:30 ET (Mon–Fri)
+*/30 4-19 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
 
-If you have other cron jobs that should remain in local time, set the timezone back below this block, for example:
+# HEALTH: daily heartbeat (08:05 ET every day)
+5 8 * * *  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
 
-```bash
-CRON_TZ=Asia/Seoul
+# If needed for other jobs:
+# CRON_TZ=Asia/Seoul
 ```
 
 ## Data model (1-hour candle)
