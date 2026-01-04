@@ -3,6 +3,7 @@ import sqlite3
 from typing import Optional
 from datetime import datetime, timezone
 
+
 class SqliteStore:
     def __init__(self, path: str = "alerts.db"):
         self.path = path
@@ -22,6 +23,14 @@ class SqliteStore:
                 error_message TEXT,
                 tickers TEXT,
                 alerts_sent INTEGER DEFAULT 0
+              )
+            """)
+            con.execute("""
+              CREATE TABLE IF NOT EXISTS health_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                last_signature TEXT,
+                last_sent_at TEXT,
+                last_ok_date_seoul TEXT
               )
             """)
 
@@ -75,3 +84,32 @@ class SqliteStore:
             "tickers": row[5],
             "alerts_sent": row[6],
         }
+
+    def get_health_state(self) -> dict:
+        with sqlite3.connect(self.path) as con:
+            row = con.execute(
+                "SELECT last_signature, last_sent_at, last_ok_date_seoul "
+                "FROM health_state WHERE id=1"
+            ).fetchone()
+
+        if not row:
+            return {"last_signature": None, "last_sent_at": None, "last_ok_date_seoul": None}
+
+        return {"last_signature": row[0], "last_sent_at": row[1], "last_ok_date_seoul": row[2]}
+
+    def update_health_state(
+        self,
+        last_signature: Optional[str],
+        last_sent_at: Optional[str],
+        last_ok_date_seoul: Optional[str],
+    ) -> None:
+        with sqlite3.connect(self.path) as con:
+            con.execute(
+                "INSERT INTO health_state(id, last_signature, last_sent_at, last_ok_date_seoul) "
+                "VALUES(1, ?, ?, ?) "
+                "ON CONFLICT(id) DO UPDATE SET "
+                "last_signature=excluded.last_signature, "
+                "last_sent_at=excluded.last_sent_at, "
+                "last_ok_date_seoul=excluded.last_ok_date_seoul",
+                (last_signature, last_sent_at, last_ok_date_seoul),
+            )
