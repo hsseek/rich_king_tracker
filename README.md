@@ -315,8 +315,6 @@ Cron is configured in **U.S. Eastern Time** so daylight saving time is handled a
 ⚠️ `CRON_TZ` applies to all lines below it until reset.
 
 ```bash
-SHELL=/bin/bash
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 CRON_TZ=America/New_York
 
 # Pre-market (04:00–09:20 ET), every 10 minutes
