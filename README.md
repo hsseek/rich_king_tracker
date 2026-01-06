@@ -30,6 +30,14 @@ ALERT_DB=/home/<user>/PythonProjects/RichKingTracker/alerts.db
 LOG_DIR=/home/<user>/PythonProjects/RichKingTracker/logs
 LOG_FILE=monitor.log
 
+# Timeframe
+REGIME_INTERVAL=1h
+EXEC_INTERVAL=15m
+EXEC_CONFIRM_BARS=2
+
+LOOKBACK_DAYS_1H=30
+LOOKBACK_DAYS_15M=10
+
 # Short-momentum distance filter
 GAP_ATR_K=0.15
 
