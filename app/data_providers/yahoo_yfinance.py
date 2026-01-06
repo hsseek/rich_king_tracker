@@ -1,11 +1,15 @@
 import yfinance as yf
 import pandas as pd
 
-def fetch_hourly(ticker: str, lookback_days: int = 10) -> pd.DataFrame:
+def fetch_ohlc(ticker: str, interval: str, lookback_days: int) -> pd.DataFrame:
+    """
+    Fetch OHLCV data from Yahoo Finance via yfinance.
+    interval examples: "15m", "1h"
+    """
     df = yf.download(
         tickers=ticker,
         period=f"{lookback_days}d",
-        interval="1h",
+        interval=interval,
         auto_adjust=False,
         progress=False,
         threads=False,
@@ -27,3 +31,6 @@ def fetch_hourly(ticker: str, lookback_days: int = 10) -> pd.DataFrame:
             )
 
     return df.dropna()
+
+def fetch_hourly(ticker: str, lookback_days: int = 10) -> pd.DataFrame:
+    return fetch_ohlc(ticker=ticker, interval="1h", lookback_days=lookback_days)

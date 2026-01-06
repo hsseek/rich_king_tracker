@@ -4,11 +4,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from app.logging_config import setup_logging
-from app.data_providers.yahoo_yfinance import fetch_hourly
+from app.data_providers.yahoo_yfinance import fetch_ohlc
 from app.strategy.ema_regime import (
-    detect_confirmed_switch,
-    detect_short_momentum_up_2h,
     compute_indicators,
+    drop_incomplete_last_bar,
+    compute_regime_1h,
+    detect_exec_15m_signal,
 )
 from app.notify.telegram import send_telegram
 from app.store.sqlite_store import SqliteStore
@@ -33,94 +34,107 @@ def main():
     tickers = os.environ.get("TICKERS", "QQQ").split(",")
     tickers = [t.strip().upper() for t in tickers if t.strip()]
 
-    # Distance filter parameter (ATR-multiple)
-    gap_atr_k = float(os.environ.get("GAP_ATR_K", "0.15"))
-
     store = SqliteStore(path=os.environ.get("ALERT_DB", "alerts.db"))
 
     run_id = store.start_run(tickers)
     alerts_sent = 0
 
     try:
-        log.info("Monitor started | tickers=%s | GAP_ATR_K=%.3f", tickers, gap_atr_k)
+        exec_interval = os.environ.get("EXEC_INTERVAL", "15m")
+        regime_interval = os.environ.get("REGIME_INTERVAL", "1h")
+        exec_confirm_bars = int(os.environ.get("EXEC_CONFIRM_BARS", "2"))
+
+        lookback_days_15m = int(os.environ.get("LOOKBACK_DAYS_15M", "10"))
+        lookback_days_1h = int(os.environ.get("LOOKBACK_DAYS_1H", "30"))
+
+        log.info(
+            "Monitor started | tickers=%s | regime_tf=%s | exec_tf=%s | confirm_bars=%d",
+            tickers, regime_interval, exec_interval, exec_confirm_bars
+        )
 
         for ticker in tickers:
-            log.info("[%s] Fetching hourly data", ticker)
+            log.info("[%s] Fetching data | 1h=%dd | 15m=%dd", ticker, lookback_days_1h, lookback_days_15m)
 
-            df = fetch_hourly(ticker, lookback_days=10)
-            if df.empty:
-                log.warning("[%s] No data returned", ticker)
+            df_1h = fetch_ohlc(ticker, interval=regime_interval, lookback_days=lookback_days_1h)
+            df_15m = fetch_ohlc(ticker, interval=exec_interval, lookback_days=lookback_days_15m)
+
+            df_1h = drop_incomplete_last_bar(df_1h, regime_interval)
+            df_15m = drop_incomplete_last_bar(df_15m, exec_interval)
+
+            if df_1h.empty or df_15m.empty:
+                log.warning("[%s] No data returned after dropping incomplete bars", ticker)
                 continue
 
-            ind = compute_indicators(df)
-            last = ind.iloc[-1]
-            prev = ind.iloc[-2]
+            # Dedupe on last closed 15m bar (highest frequency)
+            last_exec_ts = str(df_15m.index[-1])
+            if store.get_last_alert_ts(ticker) == last_exec_ts:
+                log.info("[%s] Already processed this 15m bar | ts=%s", ticker, last_exec_ts)
+                continue
 
-            rsi5_tag = "RSI5"
-            rsi5 = float(last[rsi5_tag])
-            rsi5_prev = prev[rsi5_tag]
-            rsi5_delta = last[rsi5_tag] - rsi5_prev
+            # 1h regime (R1)
+            regime = compute_regime_1h(df_1h)
 
-            # Diagnostics: log price + indicators + distance filter terms
-            gap = float(last["GAP_3_9"])
-            atr5 = float(last["ATR5"]) if not (last["ATR5"] != last["ATR5"]) else float("nan")  # NaN-safe
-            thr = gap_atr_k * atr5 if atr5 == atr5 else float("nan")
+            ind_1h = compute_indicators(df_1h)
+            ind_15m = compute_indicators(df_15m)
 
+            last_1h = ind_1h.iloc[-1]
+            last_15m = ind_15m.iloc[-1]
+
+            # Log (grouped, plain words, most important first)
             log.info(
-                "[%s] Last closed 1-hour candle @ %s\n"
-                "  Momentum (short-term): EMA(3)=%.2f vs EMA(9)=%.2f (gap=%.4f, threshold=k*ATR=%.4f, k=%.3f) | RSI(5)=%.2f (delta=%.2f)\n"
-                "  Volatility: ATR(5)=%.4f\n"
-                "  Trend (medium-term): EMA(21)=%.2f (slope per hour=%.5f)\n"
-                "  Price (OHLC): open=%.2f high=%.2f low=%.2f close=%.2f",
+                "[%s] Multi-timeframe snapshot\n"
+                "  Regime (1h): %s | EMA(9)=%.2f EMA(21)=%.2f slope(EMA21)=%.5f | last_closed=%s\n"
+                "  Execution (15m): EMA(3)=%.2f vs EMA(9)=%.2f | last_closed=%s\n"
+                "  Price (15m close): %.2f",
                 ticker,
-                last.name,
-                last["EMA3"],
-                last["EMA9"],
-                gap,
-                thr,
-                gap_atr_k,
-                rsi5,
-                rsi5_delta,
-                atr5,
-                last["EMA21"],
-                last["EMA21_slope"],
-                last["Open"],
-                last["High"],
-                last["Low"],
-                last["Close"],
+                regime,
+                last_1h["EMA9"],
+                last_1h["EMA21"],
+                last_1h["EMA21_slope"],
+                last_1h.name,
+                last_15m["EMA3"],
+                last_15m["EMA9"],
+                last_15m.name,
+                last_15m["Close"],
             )
 
-            last_bar_ts = str(last.name)
-            if store.get_last_alert_ts(ticker) == last_bar_ts:
-                log.info("[%s] Already processed this bar", ticker)
-                continue
+            exec_signal = detect_exec_15m_signal(df_15m, confirm_bars=exec_confirm_bars)
 
-            # (A) New: short momentum alert (2h persistence + distance filter)
-            if detect_short_momentum_up_2h(df, k=gap_atr_k):
+            # Policy (P1) + Exit rule (X1)
+            # BUY: only when 1h regime is UP and 15m signal is BUY
+            if regime == "UP" and exec_signal == "BUY":
                 msg = (
-                    f"[{ticker}] ShortMomentumUp confirmed (2h)\n"
-                    f"- ts: {last_bar_ts}\n"
-                    f"- C: {last['Close']:.2f}\n"
-                    f"- EMA3-EMA9: {gap:.4f} > {thr:.4f} (k={gap_atr_k:.3f}, ATR5={atr5:.4f})\n"
-                    f"- RSI5: {last['RSI5']:.2f} (rising)"
+                    f"[{ticker}] BUY signal (MTF)\n"
+                    f"- Regime(1h): UP (EMA9>EMA21 & slope>0)\n"
+                    f"- Execution(15m): EMA3>EMA9 persisted {exec_confirm_bars} bars\n"
+                    f"- 1h_ts: {last_1h.name}\n"
+                    f"- 15m_ts: {last_15m.name}\n"
+                    f"- 15m_close: {last_15m['Close']:.2f}"
                 )
                 send_telegram(token, chat_id, msg)
                 alerts_sent += 1
-                log.info("[%s] SHORT MOMENTUM ALERT SENT", ticker)
+                log.info("[%s] BUY signal sent", ticker)
 
-            # (B) Existing: downtrend -> uptrend (EMA9/EMA21) confirmed
-            if detect_confirmed_switch(df):
-                msg = f"[{ticker}] Downtrend → Uptrend confirmed (2h) at {last_bar_ts}"
+            # SELL (X1): 15m bearish persists AND 1h regime is no longer UP
+            if regime != "UP" and exec_signal == "SELL":
+                msg = (
+                    f"[{ticker}] SELL signal (MTF)\n"
+                    f"- Regime(1h): {regime} (not UP)\n"
+                    f"- Execution(15m): EMA3<EMA9 persisted {exec_confirm_bars} bars\n"
+                    f"- 1h_ts: {last_1h.name}\n"
+                    f"- 15m_ts: {last_15m.name}\n"
+                    f"- 15m_close: {last_15m['Close']:.2f}"
+                )
                 send_telegram(token, chat_id, msg)
                 alerts_sent += 1
-                log.info("[%s] TREND SWITCH ALERT SENT", ticker)
+                log.info("[%s] SELL signal sent", ticker)
+
+            if exec_signal is None:
+                log.info("[%s] No execution signal on 15m (persist=%d)", ticker, exec_confirm_bars)
             else:
-                log.info("[%s] No trend-switch signal", ticker)
+                log.info("[%s] Execution signal=%s (regime=%s)", ticker, exec_signal, regime)
 
-            store.set_last_alert_ts(ticker, last_bar_ts)
-
-        store.finish_run(run_id, status="OK", alerts_sent=alerts_sent)
-        log.info("Monitor finished | OK | alerts_sent=%d", alerts_sent)
+            store.set_last_alert_ts(ticker, last_exec_ts)
 
     except Exception as e:
         store.finish_run(run_id, status="ERROR", alerts_sent=alerts_sent, error_message=str(e))

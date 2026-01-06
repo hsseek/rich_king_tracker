@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from datetime import datetime, timezone
 
 
 def ema(series: pd.Series, span: int) -> pd.Series:
@@ -117,3 +118,84 @@ def detect_short_momentum_up_2h(df: pd.DataFrame, k: float = 0.15) -> bool:
         )
 
     return short_up(t1, ind.iloc[-3]) and short_up(t, t1)
+
+
+def _interval_minutes(interval: str) -> int:
+    if interval.endswith("m"):
+        return int(interval[:-1])
+    if interval.endswith("h"):
+        return int(interval[:-1]) * 60
+    raise ValueError(f"Unsupported interval: {interval}")
+
+
+def drop_incomplete_last_bar(df: pd.DataFrame, interval: str) -> pd.DataFrame:
+    """
+    Ensures the last bar is fully closed, based on current UTC time.
+    If the last timestamp is too recent to be a closed candle, drop it.
+    """
+    if df.empty:
+        return df
+
+    mins = _interval_minutes(interval)
+    last_ts = df.index[-1]
+
+    # Make sure last_ts is timezone-aware for correct comparison
+    if getattr(last_ts, "tzinfo", None) is None:
+        # If yfinance returns naive timestamps (rare), assume UTC
+        last_ts = last_ts.replace(tzinfo=timezone.utc)
+
+    now_utc = datetime.now(timezone.utc)
+    age_seconds = (now_utc - last_ts.to_pydatetime()).total_seconds()
+
+    # If the bar started less than one full interval ago, it is likely incomplete.
+    # Use a small safety margin (30s).
+    if age_seconds < (mins * 60 - 30):
+        return df.iloc[:-1]
+    return df
+
+
+def compute_regime_1h(df_1h: pd.DataFrame) -> str:
+    """
+    R1: 1h regime from EMA9/EMA21 and EMA21 slope.
+      UP:    EMA9 > EMA21 and EMA21_slope > 0
+      DOWN:  EMA9 < EMA21 and EMA21_slope < 0
+      else:  NEUTRAL
+    """
+    ind = compute_indicators(df_1h)
+    if len(ind) < 25:
+        return "NEUTRAL"
+
+    last = ind.iloc[-1]
+    if (last["EMA9"] > last["EMA21"]) and (last["EMA21_slope"] > 0):
+        return "UP"
+    if (last["EMA9"] < last["EMA21"]) and (last["EMA21_slope"] < 0):
+        return "DOWN"
+    return "NEUTRAL"
+
+
+def detect_exec_15m_signal(df_15m: pd.DataFrame, confirm_bars: int = 2) -> str | None:
+    """
+    E2 execution model on 15m:
+      BULL if EMA3 > EMA9
+      BEAR if EMA3 < EMA9
+
+    Return:
+      "BUY"  if bullish persists confirm_bars
+      "SELL" if bearish persists confirm_bars
+      None   otherwise
+    """
+    ind = compute_indicators(df_15m)
+    if len(ind) < (confirm_bars + 5):
+        return None
+
+    # last N closed bars
+    tail = ind.iloc[-confirm_bars:]
+
+    bull = (tail["EMA3"] > tail["EMA9"]).all()
+    bear = (tail["EMA3"] < tail["EMA9"]).all()
+
+    if bull and not bear:
+        return "BUY"
+    if bear and not bull:
+        return "SELL"
+    return None

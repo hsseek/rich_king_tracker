@@ -1,25 +1,10 @@
 # RichKingTracker
+## Overview
+This project monitors U.S. stocks/ETFs and sends **BUY / SELL signals** based on a **multi-timeframe regime model**.
+The design philosophy is:
+> **Use a slower timeframe to define the market regime, and a faster timeframe to time entries and exits.**
 
-Python-based intraday (1-hour candle) monitor for ETFs/stocks (default: QQQ).  
-It fetches hourly OHLCV data, computes common technical indicators, detects short-term momentum conditions with a persistence rule, and sends Telegram notifications. The project also supports hourly health reports via Telegram and writes structured logs to file.
-
-## Features
-- Hourly OHLCV fetch (Yahoo Finance via `yfinance`)
-- Indicators:
-  - EMA(3), EMA(9), EMA(21)
-  - RSI(5)
-  - ATR(5)
-  - Derived values: EMA gap, EMA(21) slope, RSI delta
-- Signals:
-  - **ShortMomentumUp (2h persistence)**: fast momentum condition, confirmed only if it persists for 2 consecutive closed hourly candles
-  - Optional legacy signal: downtrend → uptrend regime switch (EMA9/EMA21 + slope)
-- Notifications:
-  - Telegram alerts for signals
-  - Hourly Telegram health report (last run time, status, last error, etc.)
-- Logging:
-  - Console + rotating file log
-  - Readable multi-line grouped log for each processed candle
-- Designed to scale to multiple tickers via `TICKERS=QQQ,SPY,...`
+This avoids overreacting to noise while still responding quickly to real trend changes.
 
 ## Quick Start
 
@@ -65,52 +50,140 @@ python -m app.main
 python -m app.health_report
 ```
 
-## Scheduling (cron example)
+## Timeframes used
 
-These cron rules schedule jobs in US Eastern time (DST-safe) using `CRON_TZ`.
-Important: `CRON_TZ` applies to all lines below it until you set it again.
+| Purpose              | Timeframe             | Why                                         |
+| -------------------- | --------------------- | ------------------------------------------- |
+| **Market regime**    | **1-hour candles**    | Stable enough to define trend direction     |
+| **Execution signal** | **15-minute candles** | Responsive enough for earlier entries/exits |
 
-Monitor (every 10 minutes during US pre-market, regular hours, and after-hours; Mon–Fri):
-
-```bash
-# ---------- RichKingTracker (US market sessions) ----------
-CRON_TZ=America/New_York
-
-# Pre-market: 04:00–09:20 ET, every 10 minutes (Mon–Fri)
-*/10 4-8 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-0,10,20 9 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-
-# Core session: 09:30–15:50 ET, every 10 minutes (Mon–Fri)
-30-59/10 9  * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-*/10      10-15 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-
-# Immediate post-close: 16:00–16:20 ET (Mon–Fri)
-0,10,20 16 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-
-# After-hours: 16:30–19:50 ET, every 10 minutes (Mon–Fri)
-30-59/10 16 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-*/10      17-19 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-
-# HEALTH: every 30 minutes during 04:00–19:30 ET (Mon–Fri)
-*/30 4-19 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
-
-# HEALTH: daily heartbeat (08:05 ET every day)
-5 8 * * *  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
-
-# If needed for other jobs:
-# CRON_TZ=Asia/Seoul
 ```
+                    ┌──────────────────────────┐
+                    │   1-hour candles (1h)    │
+                    │                          │
+                    │  EMA(9), EMA(21)         │
+                    │  EMA(21) slope           │
+                    └─────────────┬────────────┘
+                                  │
+                                  ▼
+                       ┌────────────────────┐
+                       │  Regime decision   │
+                       │                    │
+                       │  UP / DOWN / NEUTRAL
+                       └──────────┬─────────┘
+                                  │
+               ┌──────────────────┴──────────────────────┐
+               │                                         │
+               ▼                                         ▼
+        (Regime = UP)                              (Regime ≠ UP)
+      Allow BUY signals                         Allow SELL signals
+      Block SELL signals                        Block BUY signals
+               │                                         │
+               ▼                                         ▼
+      ┌───────────────────┐                   ┌───────────────────┐
+      │ 15-minute candles │                   │ 15-minute candles │
+      │                   │                   │                   │
+      │ EMA(3) vs EMA(9)  │                   │ EMA(3) vs EMA(9)  │
+      │ persistence (2x)  │                   │ persistence (2x)  │
+      └─────────┬─────────┘                   └─────────┬─────────┘
+                │                                       │
+                ▼                                       ▼
+         BUY notification                       SELL notification
 
-## Data model (1-hour candle)
+```
+Note that the faster timeframe never overrides the slower timeframe.
 
-Each hourly candle includes OHLC:
+---
 
-* **open**: first traded price during the hour
-* **high**: highest traded price during the hour
-* **low**: lowest traded price during the hour
-* **close**: last traded price at the end of the hour
+## When this model works well / when it fails
 
-All indicators are computed from these candles.
+This section exists as a reminder to **future me** of the strengths and limits of the current multi-timeframe regime model.
+It is intentionally explicit and conservative.
+
+---
+
+### ✅ When this model works well
+
+This model performs best under the following conditions:
+
+#### 1) The stock exhibits real directional movement
+
+* Small- to mid-cap growth stocks
+* Strategic or thematic companies (AI, semiconductors, energy transition, defense, etc.)
+* Stocks reacting to **earnings, guidance, or macro narratives**
+
+The model assumes that trends exist and can persist for **hours to days**.
+
+---
+
+#### 2) Trends develop over hours to days (not minutes)
+
+* This is **not** a scalping model
+* This is **not** a long-term buy-and-hold valuation model
+* Best suited for:
+
+  * Early trend participation
+  * Swing-style entries and exits
+
+---
+
+#### 3) Liquidity is reasonable
+
+* Clean 15-minute candles
+* EMA(3) and EMA(9) reflect consensus price action
+* No single trade dominates a candle
+
+Liquidity matters because EMA-based logic assumes aggregated behavior, not isolated prints.
+
+---
+
+### ⚠️ When this model underperforms or fails
+
+This model is **not universal**. It will struggle under these conditions:
+
+#### 1) Strongly range-bound or choppy markets
+
+* EMA(3) and EMA(9) cross frequently
+* 1-hour regime may oscillate between NEUTRAL and UP/DOWN
+* Expect:
+
+  * More signals
+  * Lower signal quality
+  * Reduced edge
+
+This is a known and accepted limitation of trend-following logic.
+
+---
+
+#### 2) Very low-liquidity stocks
+
+* EMAs can be distorted by a small number of trades
+* Indicators reflect noise rather than consensus
+* Signals may appear “technically correct” but economically meaningless
+
+---
+
+#### 3) Single-candle news shocks
+
+* Sudden gaps caused by news may invalidate EMA confirmation logic
+* This model **reacts after confirmation**, not instantly
+* It is designed to avoid false starts, not to front-run news
+
+---
+
+### Mental checklist before trusting a signal
+
+When a BUY or SELL notification arrives, pause and ask:
+
+1. Is the **1-hour regime** clearly aligned with the signal?
+2. Did the **15-minute condition persist**, or is it marginal?
+3. Is this a **low-volume session or holiday**?
+4. Is this stock historically **trend-clean or whipsaw-prone**?
+
+If (1) or (2) is unclear, treat the signal as **informational**, not actionable.
+
+
+---
 
 ## Indicators and definitions
 
@@ -118,96 +191,176 @@ All indicators are computed from these candles.
 
 EMA is computed on the **Close** price and weights recent data more heavily.
 
-For period `N`, the smoothing factor is:
+For period `N`:
 
 * `α = 2 / (N + 1)`
-
-Recursive formula:
-
 * `EMA_t = α * Close_t + (1 - α) * EMA_(t-1)`
 
 We compute:
 
-* **EMA(3)**: very short-term responsiveness (fast momentum)
-* **EMA(9)**: short-term baseline
-* **EMA(21)**: medium-term baseline
+| EMA         | Meaning                    |
+| ----------- | -------------------------- |
+| **EMA(3)**  | Very short-term momentum   |
+| **EMA(9)**  | Short-term baseline        |
+| **EMA(21)** | Medium-term trend baseline |
 
-### RSI (Relative Strength Index), RSI(5)
+---
 
-RSI measures the relative magnitude of recent gains vs losses over `N` periods, scaled 0–100.
+### EMA(21) slope
 
-We use Wilder-style smoothing (EMA-style) on gains and losses:
-
-* `delta_t = Close_t - Close_(t-1)`
-* `gain_t = max(delta_t, 0)`
-* `loss_t = max(-delta_t, 0)`
-* `avg_gain_t = WilderEMA(gain, N)`
-* `avg_loss_t = WilderEMA(loss, N)`
-* `RS_t = avg_gain_t / avg_loss_t`
-* `RSI_t = 100 - (100 / (1 + RS_t))`
-
-Interpretation (common rule of thumb):
-
-* RSI > 50 suggests bullish short-term momentum
-* RSI < 50 suggests bearish short-term momentum
-
-### ATR (Average True Range), ATR(5)
-
-ATR measures volatility. It is computed from True Range (TR):
-
-`TR_t = max(
-  High_t - Low_t,
-  abs(High_t - Close_(t-1)),
-  abs(Low_t  - Close_(t-1))
-)`
-
-ATR(5) is the rolling average of TR over the last 5 hourly candles.
+* `EMA21_slope_t = EMA21_t - EMA21_(t-1)`
 
 Interpretation:
 
-* Larger ATR means higher volatility (bigger typical price movement per hour)
+| Slope    | Meaning                   |
+| -------- | ------------------------- |
+| Positive | Medium-term trend rising  |
+| Negative | Medium-term trend falling |
 
-### Derived values
+The slope is critical: it prevents treating flat EMA crossings as real trend changes.
 
-* **RSI delta**: `RSI5_delta_t = RSI5_t - RSI5_(t-1)`
+---
 
-  * Used to ensure RSI is rising (momentum acceleration)
-* **EMA gap**: `GAP_3_9_t = EMA3_t - EMA9_t`
+## Regime definition (1-hour timeframe)
 
-  * Positive means very short-term momentum exceeds short-term baseline
-* **EMA(21) slope**: `EMA21_slope_t = EMA21_t - EMA21_(t-1)`
+The **1-hour regime** defines the market context.
 
-  * Positive slope suggests medium-term trend rising; negative suggests falling
+| Regime      | Condition                                  |
+| ----------- | ------------------------------------------ |
+| **UP**      | EMA(9) > EMA(21) **and** EMA(21) slope > 0 |
+| **DOWN**    | EMA(9) < EMA(21) **and** EMA(21) slope < 0 |
+| **NEUTRAL** | Anything else                              |
 
-## Signal logic
+This regime changes slowly and filters out short-term noise.
 
-### ShortMomentumUp (2-hour persistence)
+---
 
-A candle satisfies `ShortMomentumUp` if:
+## Execution signal (15-minute timeframe)
 
-* EMA(3) > EMA(9)
-* RSI(5) > 50
-* RSI(5) is rising (RSI5_delta > 0)
-* EMA gap exceeds a volatility-normalized threshold:
+The **execution signal** determines *when* to act.
 
-  * `GAP_3_9 > k * ATR(5)`
-  * `k` is configurable via `GAP_ATR_K` (default 0.15)
+We use a simple, fast rule:
 
-An alert triggers only if the condition holds for **two consecutive closed 1-hour candles**.
+| Condition       | Meaning                     |
+| --------------- | --------------------------- |
+| EMA(3) > EMA(9) | Short-term bullish momentum |
+| EMA(3) < EMA(9) | Short-term bearish momentum |
 
-### Health reporting
+To avoid reacting to a single noisy candle, the condition must hold for:
 
-The monitor writes run records into SQLite (`run_history`), including:
+* **`EXEC_CONFIRM_BARS = 2` consecutive closed 15-minute candles**
 
-* start/finish timestamps (UTC)
-* OK/ERROR status
-* last error message (if any)
-* alert count
+---
 
-The health report reads the latest record and sends a status summary via Telegram.
+## BUY / SELL decision logic
 
-## Notes / Caveats
+### BUY signal
 
-* Hourly timestamps from Yahoo may align on `:30` rather than `:00` depending on the data source behavior.
-* Weekends/holidays produce no new candles; the monitor will repeatedly see the last available candle and skip reprocessing via SQLite dedupe.
-* This project is for monitoring and notification only (not an automated trading system).
+A **BUY** notification is sent when **both** are true:
+
+1. **1-hour regime is UP**
+2. **15-minute execution signal is bullish**, confirmed for 2 bars
+   (`EMA(3) > EMA(9)` persists)
+
+Interpretation:
+
+> “The broader trend is up, and short-term momentum has aligned with it.”
+
+---
+
+### SELL signal (exit logic)
+
+A **SELL** notification is sent when **both** are true:
+
+1. **1-hour regime is no longer UP** (DOWN or NEUTRAL)
+2. **15-minute execution signal is bearish**, confirmed for 2 bars
+   (`EMA(3) < EMA(9)` persists)
+
+Interpretation:
+
+> “Short-term momentum has turned down and the higher-level trend no longer supports holding.”
+
+---
+
+### Note on positions
+
+This project currently operates in **signal-only mode**:
+
+* It does **not** track whether you are “in” or “out” of a position.
+* It may emit multiple BUY signals during a prolonged uptrend, and multiple SELL signals during prolonged weakness.
+* SQLite is used only to avoid duplicate alerts on the **same candle**, not to track positions.
+
+This is intentional and keeps the system simple.
+
+---
+
+## Scheduling (cron example)
+
+The monitor is scheduled to run **only when U.S. prices can actually change**, including:
+
+* Pre-market (04:00–09:30 ET)
+* Regular session (09:30–16:00 ET)
+* After-hours (16:00–20:00 ET)
+
+Cron is configured in **U.S. Eastern Time** so daylight saving time is handled automatically.
+
+⚠️ `CRON_TZ` applies to all lines below it until reset.
+
+```bash
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=America/New_York
+
+# Pre-market (04:00–09:20 ET), every 10 minutes
+*/10 4-8 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
+  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+0-20/10 9 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
+  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+
+# Regular session + immediate post-close (09:30–16:20 ET)
+30-59/10 9  * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
+  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+*/10 10-15 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
+  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+0-20/10 16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
+  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+
+# After-hours (16:30–19:50 ET)
+30-59/10 16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
+  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+*/10 17-19 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
+  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+```
+
+If you have other cron jobs that should remain in local time, reset afterwards:
+
+```bash
+CRON_TZ=Asia/Seoul
+```
+
+---
+
+## Health reporting
+
+The monitor writes execution records into SQLite (`run_history`).
+
+The health reporter:
+
+* Runs periodically
+* **Sends Telegram messages only when something meaningful changes**
+
+  * ERROR
+  * STALE (no recent runs)
+  * New completed run
+  * Optional once-per-day OK heartbeat (Seoul date)
+
+This avoids repetitive “still OK” spam while ensuring failures are surfaced quickly.
+
+---
+
+## Notes / caveats
+
+* Yahoo Finance hourly candles may align on `:30` instead of `:00`.
+* Weekends and U.S. holidays produce no new candles.
+* This system is **monitoring and notification only**, not automated trading.
+* Signals are designed for **decision support**, not blind execution.
