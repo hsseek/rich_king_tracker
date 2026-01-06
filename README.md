@@ -331,6 +331,12 @@ CRON_TZ=America/New_York
 # After-hours (16:30–19:50 ET)
 30-59/10 16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 */10 17-19 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+
+# HEALTH: every 30 minutes during 04:00–20:00 ET (Mon–Fri)
+*/30 4-19 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
+
+# HEALTH: daily heartbeat (08:05 ET every day)
+5 8 * * *  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
 ```
 
 If you have other cron jobs that should remain in local time, reset afterwards:
