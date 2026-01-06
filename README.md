@@ -320,24 +320,17 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 CRON_TZ=America/New_York
 
 # Pre-market (04:00–09:20 ET), every 10 minutes
-*/10 4-8 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
-  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-0-20/10 9 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
-  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+*/10 4-8 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+0-20/10 9 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 
 # Regular session + immediate post-close (09:30–16:20 ET)
-30-59/10 9  * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
-  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-*/10 10-15 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
-  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-0-20/10 16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
-  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+30-59/10 9  * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+*/10 10-15 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+0-20/10 16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 
 # After-hours (16:30–19:50 ET)
-30-59/10 16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
-  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-*/10 17-19 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && \
-  /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+30-59/10 16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+*/10 17-19 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 ```
 
 If you have other cron jobs that should remain in local time, reset afterwards:
