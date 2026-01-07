@@ -310,31 +310,28 @@ The monitor is scheduled to run **only when U.S. prices can actually change**, i
 * Regular session (09:30–16:00 ET)
 * After-hours (16:00–20:00 ET)
 
-Cron is configured in **U.S. Eastern Time** so daylight saving time is handled automatically.
-
-⚠️ `CRON_TZ` applies to all lines below it until reset.
 
 ```bash
-CRON_TZ=America/New_York
-
+# US Eastern time is UTC−5 (EST) in winter
 # Pre-market (04:00–09:20 ET), every 10 minutes
-*/10 4-8 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-0-20/10 9 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+*/10 18-22 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+0-20/10 23 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 
 # Regular session + immediate post-close (09:30–16:20 ET)
-30-59/10 9  * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-*/10 10-15 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-0-20/10 16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+30-59/10 23 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+*/10 0-5  * * 2-6  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+0-20/10 6  * * 2-6  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 
 # After-hours (16:30–19:50 ET)
-30-59/10 16 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
-*/10 17-19 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+30-59/10 6 * * 2-6  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
+*/10 7-9    * * 2-6  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.main >> logs/cron_monitor.out 2>&1
 
 # HEALTH: every 30 minutes during 04:00–20:00 ET (Mon–Fri)
-*/30 4-19 * * 1-5  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
+*/30 18-23 * * 1-5  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
+*/30 0-9   * * 2-6  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
 
 # HEALTH: daily heartbeat (08:05 ET every day)
-5 8 * * *  cd /home/sun/PythonProjects/RichKingTracker && /home/sun/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
+5 22 * * *  cd /home/<user>/PythonProjects/RichKingTracker && /home/<user>/PythonProjects/RichKingTracker/.venv/bin/python -m app.health_report >> logs/cron_health.out 2>&1
 ```
 
 If you have other cron jobs that should remain in local time, reset afterwards:
