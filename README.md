@@ -23,6 +23,7 @@ Create `app/.env`:
 # Required (Telegram)
 TELEGRAM_BOT_TOKEN=xxxx
 TELEGRAM_CHAT_ID=yyyy
+TELEGRAM_PERSONAL_CHAT_ID=zzzz
 
 # Optional
 TICKERS=QQQ
@@ -34,12 +35,8 @@ LOG_FILE=monitor.log
 REGIME_INTERVAL=1h
 EXEC_INTERVAL=15m
 EXEC_CONFIRM_BARS=2
-
 LOOKBACK_DAYS_1H=30
 LOOKBACK_DAYS_15M=10
-
-# Short-momentum distance filter
-GAP_ATR_K=0.15
 
 # Health report
 HEALTH_STALE_MINUTES=70
@@ -226,6 +223,30 @@ Interpretation:
 | Negative | Medium-term trend falling |
 
 The slope is critical: it prevents treating flat EMA crossings as real trend changes.
+
+---
+
+### Execution Momentum Index (EMI)
+
+The EMI measures the strength of the execution signal by quantifying the separation between the fast and slow EMAs on the 15-minute chart, normalized by price.
+
+-   **Formula:** `EMI = ((EMA3 - EMA9) / Close) * 1000`
+-   **Interpretation:**
+    -   A positive EMI indicates BUY momentum; a negative EMI indicates SELL momentum.
+    -   A larger absolute value (e.g., `1.5` vs `0.5`) suggests stronger momentum for the signal.
+    -   Because it is normalized, it can be compared across different stocks and price levels.
+
+---
+
+### Relative Volume Index (RVI)
+
+The RVI measures the conviction behind a signal by comparing the trading volume of the signal candle to the recent average.
+
+-   **Formula:** `RVI = Volume_of_signal_candle / Average_volume_over_last_20_candles`
+-   **Interpretation:**
+    -   `RVI > 1.0`: The signal occurred on above-average volume, suggesting higher conviction.
+    -   `RVI < 1.0`: The signal occurred on below-average volume, suggesting weaker conviction.
+    -   It provides a dimension of analysis independent of price-based indicators like EMAs.
 
 ---
 

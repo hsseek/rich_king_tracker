@@ -55,6 +55,10 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     # Slopes
     out["EMA21_slope"] = out["EMA21"].diff()
 
+    # Volume
+    out["Volume_MA20"] = out["Volume"].rolling(window=20).mean()
+    out["RVI"] = out["Volume"] / out["Volume_MA20"]
+
     # RSI(5)
     out["RSI5"] = rsi(out["Close"], period=5)
 
