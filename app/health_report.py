@@ -40,7 +40,7 @@ def main():
 
     try:
         token = os.environ["TELEGRAM_BOT_TOKEN"]
-        chat_id = os.environ["TELEGRAM_CHAT_ID"]
+        chat_id = os.environ["TELEGRAM_PERSONAL_CHAT_ID"]
     except KeyError as e:
         log.exception("Missing env var: %s", e)
         raise
