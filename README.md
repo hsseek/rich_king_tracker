@@ -33,10 +33,10 @@ LOG_FILE=monitor.log
 
 # Timeframe
 REGIME_INTERVAL=1h
-EXEC_INTERVAL=15m
-EXEC_CONFIRM_BARS=2
-LOOKBACK_DAYS_1H=30
-LOOKBACK_DAYS_15M=10
+EXEC_INTERVAL=30m
+EXEC_CONFIRM_BARS=3
+LOOKBACK_DAYS_REGIME=30
+LOOKBACK_DAYS_EXEC=20
 
 # Health report
 HEALTH_STALE_MINUTES=70
@@ -60,7 +60,7 @@ python -m app.health_report
 | Purpose              | Timeframe             | Why                                         |
 | -------------------- | --------------------- | ------------------------------------------- |
 | **Market regime**    | **1-hour candles**    | Stable enough to define trend direction     |
-| **Execution signal** | **15-minute candles** | Responsive enough for earlier entries/exits |
+| **Execution signal** | **30-minute candles** | Responsive enough for earlier entries/exits |
 
 ```
                     ┌──────────────────────────┐
@@ -86,10 +86,10 @@ python -m app.health_report
                │                                         │
                ▼                                         ▼
       ┌───────────────────┐                   ┌───────────────────┐
-      │ 15-minute candles │                   │ 15-minute candles │
+      │ 30-minute candles │                   │ 30-minute candles │
       │                   │                   │                   │
       │ EMA(3) vs EMA(9)  │                   │ EMA(3) vs EMA(9)  │
-      │ persistence (2x)  │                   │ persistence (2x)  │
+      │ persistence (3x)  │                   │ persistence (3x)  │
       └─────────┬─────────┘                   └─────────┬─────────┘
                 │                                       │
                 ▼                                       ▼
@@ -264,7 +264,7 @@ This regime changes slowly and filters out short-term noise.
 
 ---
 
-## Execution signal (15-minute timeframe)
+## Execution signal (30-minute timeframe)
 
 The **execution signal** determines *when* to act.
 
@@ -277,7 +277,7 @@ We use a simple, fast rule:
 
 To avoid reacting to a single noisy candle, the condition must hold for:
 
-* **`EXEC_CONFIRM_BARS = 2` consecutive closed 15-minute candles**
+* **`EXEC_CONFIRM_BARS = 3` consecutive closed 30-minute candles**
 
 ---
 
@@ -288,7 +288,7 @@ To avoid reacting to a single noisy candle, the condition must hold for:
 A **BUY** notification is sent when **both** are true:
 
 1. **1-hour regime is UP**
-2. **15-minute execution signal is bullish**, confirmed for 2 bars
+2. **30-minute execution signal is bullish**, confirmed for 3 bars
    (`EMA(3) > EMA(9)` persists)
 
 Interpretation:
@@ -302,7 +302,7 @@ Interpretation:
 A **SELL** notification is sent when **both** are true:
 
 1. **1-hour regime is no longer UP** (DOWN or NEUTRAL)
-2. **15-minute execution signal is bearish**, confirmed for 2 bars
+2. **30-minute execution signal is bearish**, confirmed for 3 bars
    (`EMA(3) < EMA(9)` persists)
 
 Interpretation:

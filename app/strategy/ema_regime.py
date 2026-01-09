@@ -177,7 +177,7 @@ def compute_regime_1h(df_1h: pd.DataFrame) -> str:
     return "NEUTRAL"
 
 
-def detect_exec_15m_signal(df_15m: pd.DataFrame, confirm_bars: int = 2) -> str | None:
+def detect_exec_signal(df_exec: pd.DataFrame, confirm_bars: int = 2) -> str | None:
     """
     E2 execution model on 15m:
       BULL if EMA3 > EMA9
@@ -188,7 +188,7 @@ def detect_exec_15m_signal(df_15m: pd.DataFrame, confirm_bars: int = 2) -> str |
       "SELL" if bearish persists confirm_bars
       None   otherwise
     """
-    ind = compute_indicators(df_15m)
+    ind = compute_indicators(df_exec)
     if len(ind) < (confirm_bars + 5):
         return None
 

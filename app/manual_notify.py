@@ -35,16 +35,16 @@ def main():
     log.info(f"Starting manual snapshot for tickers: {tickers} to chat ID: {personal_chat_id}")
 
     # --- Configuration ---
-    exec_interval = os.environ.get("EXEC_INTERVAL", "15m")
+    exec_interval = os.environ.get("EXEC_INTERVAL", "30m")
     regime_interval = os.environ.get("REGIME_INTERVAL", "1h")
-    exec_confirm_bars = int(os.environ.get("EXEC_CONFIRM_BARS", "2"))
-    lookback_days_15m = int(os.environ.get("LOOKBACK_DAYS_15M", "10"))
-    lookback_days_1h = int(os.environ.get("LOOKBACK_DAYS_1H", "30"))
+    exec_confirm_bars = int(os.environ.get("EXEC_CONFIRM_BARS", "3"))
+    lookback_days_regime = int(os.environ.get("LOOKBACK_DAYS_REGIME", "30"))
+    lookback_days_exec = int(os.environ.get("LOOKBACK_DAYS_EXEC", "20"))
 
     # --- Main Loop ---
     for ticker in tickers:
         snapshot = process_ticker(
-            ticker, regime_interval, exec_interval, lookback_days_1h, lookback_days_15m, exec_confirm_bars
+            ticker, regime_interval, exec_interval, lookback_days_regime, lookback_days_exec, exec_confirm_bars
         )
 
         if not snapshot:
@@ -54,7 +54,7 @@ def main():
             
         # Format the message using the centralized function
         # Pass `is_manual_snapshot=True` to get the snapshot-specific title and status
-        msg = format_signal_message(snapshot, exec_confirm_bars, is_manual_snapshot=True)
+        msg = format_signal_message(snapshot, exec_confirm_bars, exec_interval, is_manual_snapshot=True)
 
         send_telegram(token, personal_chat_id, msg)
 
